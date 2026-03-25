@@ -326,15 +326,112 @@
           <div class="text-sm font-semibold text-slate-600 mb-3">Critical &amp; High Failures</div>
           <div class="space-y-2">
             <template x-for="r in results.results.filter(r => r.status === 'FAIL' && ['critical','high'].includes(r.severity)).slice(0,6)">
-              <div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(218,44,56,.06);border:1px solid rgba(218,44,56,.15);border-radius:10px;">
+              <div class="flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80 transition-opacity" style="background:rgba(218,44,56,.06);border:1px solid rgba(218,44,56,.15);border-radius:10px;" @click="openControl(controls.find(c=>c.id===r.control_id) || r)">
                 <span class="pill flex-shrink-0" :class="r.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'" x-text="r.severity.toUpperCase()"></span>
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <div class="text-xs font-mono text-slate-500" x-text="r.control_id"></div>
                   <div class="text-sm font-medium text-slate-800 truncate" x-text="r.control_title"></div>
+                  <div class="text-xs text-slate-400 mt-0.5" x-text="(r.check_results||[]).filter(c=>c.status==='FAIL').length + ' check(s) failing'"></div>
+                </div>
+                <svg class="w-4 h-4 text-slate-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Check-level KPIs -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4" x-show="checkStats">
+        <template x-for="stat in checkStats ? [
+          { label:'Checks Run', value: checkStats.total, sub: 'individual automated checks', icon:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color:'#334155', ic:'#94a3b8' },
+          { label:'Check Pass Rate', value: checkStats.passRate + '%', sub: checkStats.pass + ' of ' + checkStats.total + ' passed', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: checkStats.passRate >= 80 ? '#16a34a' : checkStats.passRate >= 60 ? '#d97706' : '#dc2626', ic: checkStats.passRate >= 80 ? '#4ade80' : checkStats.passRate >= 60 ? '#fbbf24' : '#f87171' },
+          { label:'Resources Scanned', value: checkStats.resources, sub: 'unique Terraform resources', icon:'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', color:'var(--waf-brand)', ic:'var(--waf-brand)' },
+          { label:'Resources Failing', value: checkStats.failResources, sub: 'resources with ≥1 failure', icon:'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color: checkStats.failResources > 0 ? '#dc2626' : '#16a34a', ic: checkStats.failResources > 0 ? '#f87171' : '#4ade80' }
+        ] : []" :key="stat.label">
+          <div class="card flex items-start gap-3" style="border:1px solid #e2e8f0;">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style="background:#f7f8fb;">
+              <svg class="w-4 h-4" :style="'color:'+stat.ic" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="stat.icon"/></svg>
+            </div>
+            <div>
+              <div class="text-2xl font-bold leading-tight" :style="'color:'+stat.color" x-text="stat.value"></div>
+              <div class="text-xs font-semibold text-slate-600 mt-0.5" x-text="stat.label"></div>
+              <div class="text-xs text-slate-400" x-text="stat.sub"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Category breakdown + Regulatory readiness -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div class="card">
+          <div class="text-sm font-semibold text-slate-600 mb-4">Pass Rate by Category</div>
+          <div class="space-y-3" x-show="categoryBreakdown.length > 0">
+            <template x-for="item in categoryBreakdown" :key="item.cat">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-medium text-slate-700 capitalize" x-text="item.cat.replace(/_/g,' ')"></span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400" x-text="item.pass + '/' + item.total"></span>
+                    <span class="text-xs font-bold w-9 text-right" :style="item.pct >= 80 ? 'color:#16a34a' : item.pct >= 60 ? 'color:#d97706' : 'color:#dc2626'" x-text="item.pct + '%'"></span>
+                  </div>
+                </div>
+                <div class="h-2 rounded-full" style="background:#f1f5f9;overflow:hidden;">
+                  <div class="h-full rounded-full transition-all duration-500" :style="'width:'+item.pct+'%;background:'+(item.pct >= 80 ? '#22c55e' : item.pct >= 60 ? '#facc15' : '#ef4444')"></div>
                 </div>
               </div>
             </template>
           </div>
+          <div x-show="categoryBreakdown.length === 0" class="text-slate-400 text-sm text-center py-4">Run a scan to see category breakdown.</div>
+        </div>
+
+        <div class="card">
+          <div class="text-sm font-semibold text-slate-600 mb-4">Regulatory Readiness</div>
+          <div class="space-y-3" x-show="regulatoryReadiness.length > 0">
+            <template x-for="fw in regulatoryReadiness" :key="fw.framework">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-semibold text-slate-700" x-text="fw.framework"></span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400" x-text="fw.pass + '/' + fw.total + ' controls'"></span>
+                    <span class="pill text-xs font-bold" :class="fw.pct >= 80 ? 'bg-green-100 text-green-700' : fw.pct >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'" x-text="fw.pct + '%'"></span>
+                  </div>
+                </div>
+                <div class="h-2 rounded-full" style="background:#f1f5f9;overflow:hidden;">
+                  <div class="h-full rounded-full transition-all duration-500" :style="'width:'+fw.pct+'%;background:'+(fw.pct >= 80 ? '#22c55e' : fw.pct >= 60 ? '#facc15' : '#ef4444')"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div x-show="regulatoryReadiness.length === 0" class="text-slate-400 text-sm text-center py-4">No regulatory mappings found in scan results.</div>
+        </div>
+      </div>
+
+      <!-- Quick Wins -->
+      <div class="card mt-4" x-show="quickWins.length > 0">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(34,197,94,.12);">
+            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-slate-800">Quick Wins</div>
+            <div class="text-xs text-slate-400">Medium &amp; low severity failures — lower effort to remediate</div>
+          </div>
+          <span class="ml-auto text-xs text-slate-400" x-text="quickWins.length + ' control(s)'"></span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <template x-for="r in quickWins" :key="r.control_id">
+            <div class="p-3 rounded-xl cursor-pointer transition-all" style="border:1px solid #e2e8f0;" @mouseenter="$el.style.borderColor='var(--waf-brand)'" @mouseleave="$el.style.borderColor='#e2e8f0'" @click="openControl(controls.find(c=>c.id===r.control_id) || r)">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-mono text-xs text-slate-400" x-text="r.control_id"></span>
+                <span class="pill text-xs" :class="severityColor(r.severity)" x-text="r.severity"></span>
+              </div>
+              <div class="text-sm font-medium text-slate-700 leading-snug mb-2" x-text="r.control_title"></div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="pill text-xs" :class="pillarColor(r.pillar)" x-text="r.pillar"></span>
+                <span class="text-xs text-slate-400" x-text="(r.check_results||[]).filter(c=>c.status==='FAIL').length + ' check(s) failing'"></span>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -652,14 +749,14 @@
           </button>
         </div>
         <div class="flex border-b px-6">
-          <template x-for="tab in ['overview','regulatory','checks','waiver']">
-            <button @click="modalTab = tab" class="px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors"
+          <template x-for="tab in ['overview','why','regulatory','checks','fix','waiver']">
+            <button @click="modalTab = tab" class="px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap"
               :style="modalTab === tab ? 'border-color:var(--waf-brand);color:var(--waf-brand);' : 'border-color:transparent;color:#6b7280;'">
-              <span x-text="tab.charAt(0).toUpperCase() + tab.slice(1)"></span>
+              <span x-text="({'overview':'Overview','why':'Why it Matters','regulatory':'Regulatory','checks':'Checks','fix':'How to Fix','waiver':'Waiver'})[tab]"></span>
             </button>
           </template>
         </div>
-        <div class="p-6 overflow-y-auto" style="max-height:22rem;">
+        <div class="p-6">
           <div x-show="modalTab === 'overview'">
             <p class="text-sm text-slate-700 leading-relaxed" x-text="selectedControl.description"></p>
             <div class="mt-4">
@@ -669,6 +766,37 @@
             <div class="mt-4">
               <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Automated Checks</div>
               <div class="text-sm text-slate-700" x-text="selectedControl.checks_count + ' automated check(s) available'"></div>
+            </div>
+          </div>
+          <div x-show="modalTab === 'why'">
+            <!-- Business Impact -->
+            <div class="mb-5">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(0,148,255,.1);">
+                  <svg class="w-4 h-4" style="color:var(--waf-brand);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <span class="text-sm font-semibold text-slate-800">Business Impact</span>
+              </div>
+              <div x-show="selectedControl.rationale" class="p-4 rounded-xl text-sm text-slate-700 leading-relaxed" style="background:rgba(0,148,255,.05);border:1px solid rgba(0,148,255,.15);" x-text="selectedControl.rationale"></div>
+              <div x-show="!selectedControl.rationale" class="text-sm text-slate-400 italic">No business rationale defined for this control.</div>
+            </div>
+            <!-- Technical Impact -->
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.1);">
+                  <svg class="w-4 h-4" style="color:#ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <span class="text-sm font-semibold text-slate-800">Technical Impact</span>
+              </div>
+              <div x-show="selectedControl.threat && selectedControl.threat.length" class="space-y-2">
+                <template x-for="t in (selectedControl.threat || [])">
+                  <div class="flex items-start gap-2 p-3 rounded-xl text-sm text-slate-700 leading-relaxed" style="background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.12);">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0" style="color:#ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span x-text="t"></span>
+                  </div>
+                </template>
+              </div>
+              <div x-show="!selectedControl.threat || !selectedControl.threat.length" class="text-sm text-slate-400 italic">No threat information defined for this control.</div>
             </div>
           </div>
           <div x-show="modalTab === 'regulatory'" class="space-y-4">
@@ -694,6 +822,35 @@
               </div>
             </template>
           </div>
+          <div x-show="modalTab === 'fix'">
+            <div x-show="!selectedControl.automated_checks || selectedControl.automated_checks.length === 0" class="text-slate-400 text-sm">No automated checks available.</div>
+            <div class="space-y-4">
+              <template x-for="check in (selectedControl.automated_checks || [])">
+                <div class="rounded-xl border border-slate-200 overflow-hidden">
+                  <div class="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                    <span class="font-mono text-xs text-slate-500" x-text="check.id"></span>
+                    <span class="pill text-xs" :class="severityColor(check.severity)" x-text="check.severity"></span>
+                  </div>
+                  <div x-show="check.remediation" class="px-3 py-2 text-sm text-slate-700 leading-relaxed border-b border-slate-100" x-text="check.remediation"></div>
+                  <div x-show="check.example && check.example.compliant">
+                    <div class="flex items-center justify-between px-3 py-1.5" style="background:#1e293b;">
+                      <span style="color:#64748b;font-size:0.65rem;font-family:monospace;letter-spacing:.04em;">COMPLIANT TERRAFORM</span>
+                      <button @click="copyFix(check.example && check.example.compliant)" class="flex items-center gap-1 text-xs px-2 py-0.5 rounded" style="background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.12);" :style="copiedFix === (check.example && check.example.compliant) ? 'color:#4ade80;border-color:#4ade80;' : ''">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        <span x-text="copiedFix === (check.example && check.example.compliant) ? 'Copied!' : 'Copy'"></span>
+                      </button>
+                    </div>
+                    <pre class="px-3 py-2 text-xs overflow-x-auto" style="background:#0f172a;color:#e2e8f0;font-family:monospace;margin:0;line-height:1.55;max-height:240px;" x-text="check.example && check.example.compliant"></pre>
+                  </div>
+                  <div x-show="check.resource_types && check.resource_types.length" class="flex items-center gap-1.5 px-3 py-2 border-t border-slate-100">
+                    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    <a :href="tfDocUrl(check.resource_types && check.resource_types[0])" target="_blank" rel="noopener" class="text-xs hover:underline" style="color:var(--waf-brand);" x-text="'registry.terraform.io → ' + (check.resource_types && check.resource_types[0])"></a>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <div x-show="modalTab === 'waiver'" class="space-y-4">
             <div x-show="waivers[selectedControl.id]" class="p-3 rounded-lg border text-sm" style="background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9;">This control is currently waived.</div>
             <div>
@@ -740,7 +897,7 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-        <div class="p-6 space-y-4 overflow-y-auto" style="max-height:22rem;">
+        <div class="p-6 space-y-4">
           <div>
             <div class="text-xs font-semibold text-slate-500 uppercase mb-2">Description</div>
             <p class="text-sm text-slate-700" x-text="selectedFinding.description"></p>
@@ -912,9 +1069,9 @@
 
     // ── Demo Data ─────────────────────────────────────────────────────────────
 const DEMO_CONTROLS = [
-  { id:'WAF-SEC-010', title:'Identity & Access Management Baseline', pillar:'security', severity:'critical', category:'iam', description:'All AWS accounts MUST enforce MFA for all IAM users with console access. Root account usage MUST be prohibited for day-to-day operations. IAM password policy MUST meet minimum security requirements.', checks_count:2, automated_checks:[{id:'waf-sec-010.tf.aws.iam-password-policy-mfa', title:'AWS IAM account password policy must meet minimum security requirements', severity:'critical'}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 32','Art. 5(1)(f)']},{framework:'BSI C5:2020', controls:['IAM-01','IAM-02']},{framework:'ISO 27001:2022', controls:['A.8.2','A.8.5','A.5.17']},{framework:'EUCS (ENISA)', controls:['IAM-01','IAM-02']}] },
-  { id:'WAF-SEC-020', title:'Data Encryption at Rest & in Transit', pillar:'security', severity:'critical', category:'encryption', description:'All data at rest MUST be encrypted using AES-256 or equivalent. All data in transit MUST use TLS 1.2 or higher. S3 buckets, RDS instances, and EBS volumes must have encryption enabled.', checks_count:3, automated_checks:[{id:'waf-sec-020.tf.aws.s3-encryption', title:'S3 buckets must have server-side encryption enabled', severity:'critical'},{id:'waf-sec-020.tf.aws.rds-encryption', title:'RDS instances must have storage encryption enabled', severity:'critical'}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.24']},{framework:'BSI C5:2020', controls:['CRY-01']}] },
-  { id:'WAF-SEC-030', title:'Network Security & Segmentation', pillar:'security', severity:'high', category:'network', description:'All VPCs MUST implement network segmentation with private and public subnets. Security groups MUST follow principle of least privilege. No 0.0.0.0/0 ingress on sensitive ports.', checks_count:4, automated_checks:[{id:'waf-sec-030.tf.aws.no-open-sg', title:'Security groups must not allow unrestricted inbound access', severity:'critical'}], regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.20','A.8.22']},{framework:'EUCS (ENISA)', controls:['NET-01']}] },
+  { id:'WAF-SEC-010', title:'Identity & Access Management Baseline', pillar:'security', severity:'critical', category:'iam', description:'All AWS accounts MUST enforce MFA for all IAM users with console access. Root account usage MUST be prohibited for day-to-day operations. IAM password policy MUST meet minimum security requirements.', rationale:'Weak or absent identity controls are the leading cause of cloud security breaches. Enforcing MFA and strong password policies directly reduces the risk of account compromise, limits blast radius from credential theft, and is required for compliance with GDPR, ISO 27001 and financial-sector regulations. Failing this control can expose the organisation to regulatory fines, reputational damage, and uncontrolled data exfiltration.', threat:['Credential theft via phishing or brute-force leading to full account takeover','Lateral movement across AWS accounts once initial access is gained','Unauthorised data access or deletion by compromised IAM principals','Root account misuse leading to irreversible infrastructure changes'], checks_count:2, automated_checks:[{id:'waf-sec-010.tf.aws.iam-password-policy-mfa', title:'AWS IAM account password policy must meet minimum security requirements', severity:'critical', resource_types:['aws_iam_account_password_policy'], remediation:'Define an aws_iam_account_password_policy resource with minimum_password_length >= 14, all require_* flags set to true, password_reuse_prevention >= 5, and max_password_age <= 90.', example:{compliant:'resource "aws_iam_account_password_policy" "strict" {\n  minimum_password_length        = 14\n  require_uppercase_characters   = true\n  require_lowercase_characters   = true\n  require_numbers                = true\n  require_symbols                = true\n  allow_users_to_change_password = true\n  max_password_age               = 90\n  password_reuse_prevention      = 5\n  hard_expiry                    = false\n}'}}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 32','Art. 5(1)(f)']},{framework:'BSI C5:2020', controls:['IAM-01','IAM-02']},{framework:'ISO 27001:2022', controls:['A.8.2','A.8.5','A.5.17']},{framework:'EUCS (ENISA)', controls:['IAM-01','IAM-02']}] },
+  { id:'WAF-SEC-020', title:'Data Encryption at Rest & in Transit', pillar:'security', severity:'critical', category:'encryption', description:'All data at rest MUST be encrypted using AES-256 or equivalent. All data in transit MUST use TLS 1.2 or higher. S3 buckets, RDS instances, and EBS volumes must have encryption enabled.', rationale:'Encryption is the last line of defence when perimeter controls fail. Unencrypted data stores mean that a single misconfiguration — a public S3 bucket, an exposed snapshot, a rogue insider — can result in a full data breach. Customers, regulators (GDPR Art. 32, PCI-DSS Req. 3), and cloud certification bodies explicitly require encryption of sensitive data at rest and in transit.', threat:['Plaintext data exposure from misconfigured S3 bucket ACLs or public snapshots','Data exfiltration via compromised instance with direct disk access','Man-in-the-middle interception of sensitive data in transit over legacy TLS','Snapshot theft leading to offline decryption of database contents'], checks_count:3, automated_checks:[{id:'waf-sec-020.tf.aws.s3-encryption', title:'S3 buckets must have server-side encryption enabled', severity:'critical', resource_types:['aws_s3_bucket_server_side_encryption_configuration'], remediation:'Add an aws_s3_bucket_server_side_encryption_configuration resource referencing your bucket. Set sse_algorithm to "aws:kms" for KMS-managed keys or "AES256" for S3-managed keys.', example:{compliant:'resource "aws_s3_bucket_server_side_encryption_configuration" "example" {\n  bucket = aws_s3_bucket.example.id\n\n  rule {\n    apply_server_side_encryption_by_default {\n      sse_algorithm     = "aws:kms"\n      kms_master_key_id = aws_kms_key.bucket_key.arn\n    }\n    bucket_key_enabled = true\n  }\n}'}},{id:'waf-sec-020.tf.aws.rds-encryption', title:'RDS instances must have storage encryption enabled', severity:'critical', resource_types:['aws_db_instance'], remediation:'Set storage_encrypted = true on your aws_db_instance resource. Optionally specify a kms_key_id for a customer-managed key.', example:{compliant:'resource "aws_db_instance" "example" {\n  identifier        = "my-rds"\n  engine            = "postgres"\n  instance_class    = "db.t3.medium"\n  allocated_storage = 20\n  storage_encrypted = true\n  kms_key_id        = aws_kms_key.rds_key.arn\n  # ... other required fields\n}'}}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.24']},{framework:'BSI C5:2020', controls:['CRY-01']}] },
+  { id:'WAF-SEC-030', title:'Network Security & Segmentation', pillar:'security', severity:'high', category:'network', description:'All VPCs MUST implement network segmentation with private and public subnets. Security groups MUST follow principle of least privilege. No 0.0.0.0/0 ingress on sensitive ports.', rationale:'Flat networks without segmentation allow attackers to move laterally unchecked after initial access. Proper VPC design with private subnets and restrictive security groups contains blast radius, satisfies network-control requirements in ISO 27001 A.8.20–22 and BSI C5 NET controls, and is a prerequisite for achieving cloud security certifications in regulated industries.', threat:['Unrestricted SSH/RDP exposure enabling brute-force or direct remote exploitation','Lateral movement from a compromised workload to databases or internal services','Exfiltration of sensitive data via overly permissive egress rules','Internet-accessible management APIs leading to infrastructure takeover'], checks_count:4, automated_checks:[{id:'waf-sec-030.tf.aws.no-open-sg', title:'Security groups must not allow unrestricted inbound access', severity:'critical', resource_types:['aws_security_group'], remediation:'Remove any ingress rules with cidr_blocks = ["0.0.0.0/0"] or ipv6_cidr_blocks = ["::/0"] on sensitive ports (22, 3389, 5432, etc.). Restrict access to known CIDR ranges or use VPC prefix lists.', example:{compliant:'resource "aws_security_group" "app" {\n  name   = "app-sg"\n  vpc_id = aws_vpc.main.id\n\n  ingress {\n    description = "HTTPS from corporate network"\n    from_port   = 443\n    to_port     = 443\n    protocol    = "tcp"\n    cidr_blocks = ["10.0.0.0/8"]\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = "-1"\n    cidr_blocks = ["0.0.0.0/0"]\n  }\n}'}}], regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.20','A.8.22']},{framework:'EUCS (ENISA)', controls:['NET-01']}] },
   { id:'WAF-SEC-050', title:'Logging & Monitoring Baseline', pillar:'security', severity:'high', category:'logging', description:'CloudTrail MUST be enabled in all regions with log file validation. VPC Flow Logs MUST be enabled for all VPCs. CloudWatch Alarms MUST be configured for critical events.', checks_count:3, automated_checks:[{id:'waf-sec-050.tf.aws.cloudtrail', title:'CloudTrail must be enabled with multi-region and log file validation', severity:'high'}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 30','Art. 32']},{framework:'BSI C5:2020', controls:['LOG-01','LOG-02']},{framework:'ISO 27001:2022', controls:['A.8.15','A.8.16']}] },
   { id:'WAF-SEC-060', title:'Secrets Management', pillar:'security', severity:'critical', category:'secrets', description:'All secrets, API keys, and credentials MUST be stored in a dedicated secrets manager (AWS Secrets Manager or HashiCorp Vault). No hardcoded credentials in IaC or application code.', checks_count:2, automated_checks:[{id:'waf-sec-060.tf.aws.no-hardcoded-secrets', title:'No hardcoded credentials in Terraform configuration', severity:'critical'}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.12','A.5.17']}] },
   { id:'WAF-COST-010', title:'Resource Tagging Policy', pillar:'cost', severity:'medium', category:'tagging', description:'All billable resources MUST include mandatory cost allocation tags: Environment, Team, CostCenter, and Project. Resources without these tags cannot be attributed to business units.', checks_count:1, automated_checks:[{id:'waf-cost-010.tf.aws.mandatory-tags', title:'All AWS resources must have mandatory cost allocation tags', severity:'medium'}], regulatory_mapping:[{framework:'CSRD', controls:['ESRS E1']}] },
@@ -929,17 +1086,19 @@ const DEMO_CONTROLS = [
   { id:'WAF-SUS-010', title:'Carbon-Aware Resource Scheduling', pillar:'sustainability', severity:'low', category:'carbon', description:'Batch and non-critical workloads MUST use carbon-aware scheduling. Resources in high-carbon-intensity regions must have documented justification. Right-sizing reduces both cost and carbon footprint.', checks_count:1, automated_checks:[{id:'waf-sus-010.tf.aws.carbon-aware', title:'Batch workloads must prefer low-carbon regions or schedules', severity:'low'}], regulatory_mapping:[{framework:'CSRD', controls:['ESRS E1 – Climate change','ESRS E1-6 GHG emissions']}] },
   { id:'WAF-PERF-010', title:'Auto Scaling Configuration', pillar:'performance', severity:'medium', category:'scaling', description:'All EC2-based applications MUST implement Auto Scaling Groups with appropriate min/max/desired capacity. Scaling policies MUST be based on relevant metrics (CPU, memory, queue depth).', checks_count:2, automated_checks:[{id:'waf-perf-010.tf.aws.asg-required', title:'EC2 workloads must use Auto Scaling Groups', severity:'medium'}], regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.6']}] },
   { id:'WAF-PERF-030', title:'CDN & Edge Caching', pillar:'performance', severity:'low', category:'caching', description:'Static assets and cacheable API responses MUST be served through CloudFront. Cache-Control headers MUST be configured appropriately. Origin Shield MUST be enabled for high-traffic origins.', checks_count:2, automated_checks:[{id:'waf-perf-030.tf.aws.cloudfront-required', title:'Static content must be distributed via CloudFront', severity:'low'}], regulatory_mapping:[] },
+  { id:'WAF-OPS-020', title:'Alerting & Incident Response', pillar:'operations', severity:'medium', category:'monitoring', description:'All production workloads MUST have CloudWatch alarms configured for CPU, memory, error rates, and latency. PagerDuty or equivalent incident routing MUST be enabled.', rationale:'Silent failures in production can cause prolonged outages that damage customer trust and revenue. Without alerting coverage, teams discover problems from customers rather than from monitoring systems. Proper observability is a prerequisite for meeting SLA commitments.', threat:['Silent workload failures going undetected until customer reports','MTTR increases dramatically without automated incident routing','Capacity exhaustion events missed without proactive CPU/memory alerts'], checks_count:1, automated_checks:[{id:'waf-ops-020.tf.aws.cloudwatch-alarms', title:'CloudWatch alarms must be configured for critical metrics', severity:'medium', resource_types:['aws_cloudwatch_metric_alarm'], remediation:'Define aws_cloudwatch_metric_alarm resources covering CPUUtilization, MemoryUtilization, HTTPCode_Target_5XX_Count, and TargetResponseTime for all production load balancers and EC2 instances.', example:{compliant:'resource "aws_cloudwatch_metric_alarm" "cpu_high" {\n  alarm_name          = "cpu-utilization-high"\n  comparison_operator = "GreaterThanThreshold"\n  evaluation_periods  = 2\n  metric_name         = "CPUUtilization"\n  namespace           = "AWS/EC2"\n  period              = 120\n  statistic           = "Average"\n  threshold           = 80\n  alarm_actions       = [aws_sns_topic.alerts.arn]\n}'}}], regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.16']},{framework:'BSI C5:2020', controls:['LOG-02']}] },
+  { id:'WAF-GOV-010', title:'Resource Governance Baseline', pillar:'governance', severity:'low', category:'governance', description:'All AWS accounts MUST use Service Control Policies (SCPs) to enforce governance guardrails. Resource creation MUST be restricted to approved regions only.', rationale:'Without guardrails, developers can accidentally or intentionally create resources in unapproved regions, violating data residency requirements and accumulating untracked cost. SCPs provide the mandatory floor of controls that cannot be bypassed by individual IAM policies.', threat:['Accidental resource creation in non-compliant regions violating GDPR data residency','Shadow IT proliferation when teams bypass approved tooling via console access','Cost overruns from untagged resources created outside sanctioned accounts'], checks_count:1, automated_checks:[{id:'waf-gov-010.tf.aws.scp-deny-regions', title:'Service Control Policy must restrict resource creation to approved regions', severity:'low', resource_types:['aws_organizations_policy'], remediation:'Define an aws_organizations_policy of type SERVICE_CONTROL_POLICY that denies all actions where aws:RequestedRegion is not in your approved regions list. Attach it to all member accounts.', example:{compliant:'resource "aws_organizations_policy" "deny_non_eu" {\n  name = "DenyNonEURegions"\n  type = "SERVICE_CONTROL_POLICY"\n  content = jsonencode({\n    Version = "2012-10-17"\n    Statement = [{\n      Effect    = "Deny"\n      Action    = "*"\n      Resource  = "*"\n      Condition = {\n        StringNotIn = {\n          "aws:RequestedRegion" = ["eu-central-1","eu-west-1","eu-west-2"]\n        }\n      }\n    }]\n  })\n}'}}], regulatory_mapping:[{framework:'GDPR', controls:['Art. 44']},{framework:'BSI C5:2020', controls:['GOV-01']}] },
 ];
 
 const DEMO_RESULTS = {
   path: 'demo-infrastructure/',
   run_id: '20260323-143022-demo',
   timestamp: '2026-03-23T14:30:22Z',
-  controls_loaded: 17,
-  controls_run: 17,
-  score: 67,
+  controls_loaded: 19,
+  controls_run: 19,
+  score: 61,
   total_pass: 9,
-  total_fail: 7,
+  total_fail: 9,
   total_skip: 1,
   total_waived: 0,
   pillar_scores: { security: 40, cost: 80, reliability: 70, operations: 75, sovereignty: 60, sustainability: 90, performance: 80 },
@@ -955,22 +1114,24 @@ const DEMO_RESULTS = {
   ],
   results: [
     { control_id:'WAF-SEC-010', control_title:'Identity & Access Management Baseline', pillar:'security', severity:'critical', category:'iam', description:'All AWS accounts MUST enforce MFA for all IAM users with console access.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.2']}], check_results:[{check_id:'waf-sec-010.tf.aws.iam-password-policy-mfa', check_title:'AWS IAM password policy', severity:'critical', status:'FAIL', resource:'aws_iam_account_password_policy.main', message:"'minimum_password_length' is 8, must be >= 14", remediation:'Set minimum_password_length = 14 and enable all character class requirements.'}] },
-    { control_id:'WAF-SEC-020', control_title:'Data Encryption at Rest & in Transit', pillar:'security', severity:'critical', category:'encryption', description:'All data at rest MUST be encrypted using AES-256 or equivalent.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']}], check_results:[{check_id:'waf-sec-020.tf.aws.s3-encryption', check_title:'S3 bucket encryption', severity:'critical', status:'FAIL', resource:'aws_s3_bucket.data_lake', message:"'server_side_encryption_configuration' block not found", remediation:'Add server_side_encryption_configuration block with AES256 or aws:kms algorithm.'},{check_id:'waf-sec-020.tf.aws.rds-encryption', check_title:'RDS storage encryption', severity:'critical', status:'PASS', resource:'aws_db_instance.primary', message:"'storage_encrypted' is true", remediation:''}] },
-    { control_id:'WAF-SEC-030', control_title:'Network Security & Segmentation', pillar:'security', severity:'high', category:'network', description:'All VPCs MUST implement network segmentation with private and public subnets.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-sec-030.tf.aws.no-open-sg', check_title:'No unrestricted inbound', severity:'high', status:'PASS', resource:'aws_security_group.web', message:"No 0.0.0.0/0 ingress on sensitive ports", remediation:''}] },
-    { control_id:'WAF-SEC-050', control_title:'Logging & Monitoring Baseline', pillar:'security', severity:'high', category:'logging', description:'CloudTrail MUST be enabled in all regions with log file validation.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 30']}], check_results:[{check_id:'waf-sec-050.tf.aws.cloudtrail', check_title:'CloudTrail multi-region', severity:'high', status:'FAIL', resource:'aws_cloudtrail.main', message:"'is_multi_region_trail' is false, must be true", remediation:'Set is_multi_region_trail = true and enable_log_file_validation = true.'}] },
+    { control_id:'WAF-SEC-020', control_title:'Data Encryption at Rest & in Transit', pillar:'security', severity:'critical', category:'encryption', description:'All data at rest MUST be encrypted using AES-256 or equivalent.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.24']},{framework:'BSI C5:2020', controls:['CRY-01']}], check_results:[{check_id:'waf-sec-020.tf.aws.s3-encryption', check_title:'S3 bucket encryption', severity:'critical', status:'FAIL', resource:'aws_s3_bucket.data_lake', message:"'server_side_encryption_configuration' block not found", remediation:'Add server_side_encryption_configuration block with AES256 or aws:kms algorithm.'},{check_id:'waf-sec-020.tf.aws.rds-encryption', check_title:'RDS storage encryption', severity:'critical', status:'PASS', resource:'aws_db_instance.primary', message:"'storage_encrypted' is true", remediation:''}] },
+    { control_id:'WAF-SEC-030', control_title:'Network Security & Segmentation', pillar:'security', severity:'high', category:'network', description:'All VPCs MUST implement network segmentation with private and public subnets.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.20','A.8.22']},{framework:'BSI C5:2020', controls:['NET-01']}], check_results:[{check_id:'waf-sec-030.tf.aws.no-open-sg', check_title:'No unrestricted inbound', severity:'high', status:'PASS', resource:'aws_security_group.web', message:"No 0.0.0.0/0 ingress on sensitive ports", remediation:''}] },
+    { control_id:'WAF-SEC-050', control_title:'Logging & Monitoring Baseline', pillar:'security', severity:'high', category:'logging', description:'CloudTrail MUST be enabled in all regions with log file validation.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 30']},{framework:'BSI C5:2020', controls:['LOG-01']}], check_results:[{check_id:'waf-sec-050.tf.aws.cloudtrail', check_title:'CloudTrail multi-region', severity:'high', status:'FAIL', resource:'aws_cloudtrail.main', message:"'is_multi_region_trail' is false, must be true", remediation:'Set is_multi_region_trail = true and enable_log_file_validation = true.'}] },
     { control_id:'WAF-SEC-060', control_title:'Secrets Management', pillar:'security', severity:'critical', category:'secrets', description:'All secrets, API keys, and credentials MUST be stored in a dedicated secrets manager.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-sec-060.tf.aws.no-hardcoded-secrets', check_title:'No hardcoded credentials', severity:'critical', status:'PASS', resource:'(global scan)', message:'No hardcoded secrets detected', remediation:''}] },
     { control_id:'WAF-COST-010', control_title:'Resource Tagging Policy', pillar:'cost', severity:'medium', category:'tagging', description:'All billable resources MUST include mandatory cost allocation tags.', status:'FAIL', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-cost-010.tf.aws.mandatory-tags', check_title:'Mandatory tags', severity:'medium', status:'FAIL', resource:'aws_ec2_instance.app_server', message:"Missing required tag 'CostCenter'", remediation:"Add tag 'CostCenter' with your business unit identifier."}] },
     { control_id:'WAF-COST-020', control_title:'Right-sizing & Instance Optimization', pillar:'cost', severity:'medium', category:'optimization', description:'EC2 instances MUST NOT use previous-generation instance families.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-cost-020.tf.aws.no-previous-gen', check_title:'No previous-gen instances', severity:'medium', status:'PASS', resource:'aws_ec2_instance.app_server', message:'Instance type t3.medium is current generation', remediation:''}] },
     { control_id:'WAF-COST-040', control_title:'Reserved Capacity & Savings Plans', pillar:'cost', severity:'low', category:'cost-optimization', description:'Steady-state workloads running 24/7 MUST use Reserved Instances or Savings Plans.', status:'SKIP', waived_reason:null, regulatory_mapping:[], check_results:[] },
-    { control_id:'WAF-REL-010', control_title:'Multi-AZ Deployment', pillar:'reliability', severity:'high', category:'availability', description:'All production RDS instances MUST be deployed in Multi-AZ configuration.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-rel-010.tf.aws.rds-multi-az', check_title:'RDS Multi-AZ', severity:'high', status:'PASS', resource:'aws_db_instance.primary', message:"'multi_az' is true", remediation:''}] },
-    { control_id:'WAF-REL-030', control_title:'Backup & Recovery Strategy', pillar:'reliability', severity:'high', category:'backup', description:'All stateful resources MUST have automated backups enabled with minimum 7-day retention.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']}], check_results:[{check_id:'waf-rel-030.tf.aws.rds-backup', check_title:'RDS backup retention', severity:'high', status:'FAIL', resource:'aws_db_instance.analytics', message:"'backup_retention_period' is 1, must be >= 7", remediation:'Set backup_retention_period to at least 7 days for production databases.'}] },
-    { control_id:'WAF-OPS-010', control_title:'Infrastructure as Code Standards', pillar:'operations', severity:'medium', category:'iac', description:'All infrastructure MUST be defined and managed through IaC.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-ops-010.tf.aws.iac-coverage', check_title:'IaC coverage', severity:'medium', status:'PASS', resource:'(policy check)', message:'All resources declared in Terraform', remediation:''}] },
-    { control_id:'WAF-OPS-030', control_title:'CI/CD Pipeline Security', pillar:'operations', severity:'high', category:'pipeline', description:'All CI/CD pipelines MUST include security scanning stages.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-ops-030.tf.aws.pipeline-security', check_title:'Pipeline security stages', severity:'high', status:'PASS', resource:'aws_codepipeline.main', message:'Security scanning stages detected', remediation:''}] },
-    { control_id:'WAF-SOV-010', control_title:'Data Residency & Geolocation', pillar:'sovereignty', severity:'critical', category:'data-residency', description:'All data classified as EU-personal or EU-regulated MUST reside exclusively in EU AWS regions.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 44','Art. 46']}], check_results:[{check_id:'waf-sov-010.tf.aws.eu-regions-only', check_title:'EU regions only', severity:'critical', status:'PASS', resource:'(provider config)', message:'All resources deployed in eu-central-1, eu-west-1', remediation:''}] },
-    { control_id:'WAF-SOV-020', control_title:'Encryption Key Management', pillar:'sovereignty', severity:'high', category:'kms', description:'Customer-managed keys (CMKs) MUST be used for all regulated data.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']}], check_results:[{check_id:'waf-sov-020.tf.aws.kms-rotation', check_title:'KMS key rotation', severity:'high', status:'FAIL', resource:'aws_kms_key.data', message:"'enable_key_rotation' is false, must be true", remediation:'Set enable_key_rotation = true on all customer-managed KMS keys.'}] },
+    { control_id:'WAF-REL-010', control_title:'Multi-AZ Deployment', pillar:'reliability', severity:'high', category:'availability', description:'All production RDS instances MUST be deployed in Multi-AZ configuration.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.14']}], check_results:[{check_id:'waf-rel-010.tf.aws.rds-multi-az', check_title:'RDS Multi-AZ', severity:'high', status:'PASS', resource:'aws_db_instance.primary', message:"'multi_az' is true", remediation:''}] },
+    { control_id:'WAF-REL-030', control_title:'Backup & Recovery Strategy', pillar:'reliability', severity:'high', category:'backup', description:'All stateful resources MUST have automated backups enabled with minimum 7-day retention.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.13']},{framework:'BSI C5:2020', controls:['REC-01']}], check_results:[{check_id:'waf-rel-030.tf.aws.rds-backup', check_title:'RDS backup retention', severity:'high', status:'FAIL', resource:'aws_db_instance.analytics', message:"'backup_retention_period' is 1, must be >= 7", remediation:'Set backup_retention_period to at least 7 days for production databases.'}] },
+    { control_id:'WAF-OPS-010', control_title:'Infrastructure as Code Standards', pillar:'operations', severity:'medium', category:'iac', description:'All infrastructure MUST be defined and managed through IaC.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.32']}], check_results:[{check_id:'waf-ops-010.tf.aws.iac-coverage', check_title:'IaC coverage', severity:'medium', status:'PASS', resource:'(policy check)', message:'All resources declared in Terraform', remediation:''}] },
+    { control_id:'WAF-OPS-030', control_title:'CI/CD Pipeline Security', pillar:'operations', severity:'high', category:'pipeline', description:'All CI/CD pipelines MUST include security scanning stages.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.25','A.8.29']}], check_results:[{check_id:'waf-ops-030.tf.aws.pipeline-security', check_title:'Pipeline security stages', severity:'high', status:'PASS', resource:'aws_codepipeline.main', message:'Security scanning stages detected', remediation:''}] },
+    { control_id:'WAF-SOV-010', control_title:'Data Residency & Geolocation', pillar:'sovereignty', severity:'critical', category:'data-residency', description:'All data classified as EU-personal or EU-regulated MUST reside exclusively in EU AWS regions.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 44','Art. 46']},{framework:'BSI C5:2020', controls:['SOV-01']}], check_results:[{check_id:'waf-sov-010.tf.aws.eu-regions-only', check_title:'EU regions only', severity:'critical', status:'PASS', resource:'(provider config)', message:'All resources deployed in eu-central-1, eu-west-1', remediation:''}] },
+    { control_id:'WAF-SOV-020', control_title:'Encryption Key Management', pillar:'sovereignty', severity:'high', category:'kms', description:'Customer-managed keys (CMKs) MUST be used for all regulated data.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 32']},{framework:'ISO 27001:2022', controls:['A.8.24']},{framework:'BSI C5:2020', controls:['CRY-02']}], check_results:[{check_id:'waf-sov-020.tf.aws.kms-rotation', check_title:'KMS key rotation', severity:'high', status:'FAIL', resource:'aws_kms_key.data', message:"'enable_key_rotation' is false, must be true", remediation:'Set enable_key_rotation = true on all customer-managed KMS keys.'}] },
     { control_id:'WAF-SUS-010', control_title:'Carbon-Aware Resource Scheduling', pillar:'sustainability', severity:'low', category:'carbon', description:'Batch and non-critical workloads MUST use carbon-aware scheduling.', status:'PASS', waived_reason:null, regulatory_mapping:[{framework:'CSRD', controls:['ESRS E1']}], check_results:[{check_id:'waf-sus-010.tf.aws.carbon-aware', check_title:'Carbon-aware scheduling', severity:'low', status:'PASS', resource:'(policy)', message:'Workloads scheduled in low-carbon region eu-central-1', remediation:''}] },
     { control_id:'WAF-PERF-010', control_title:'Auto Scaling Configuration', pillar:'performance', severity:'medium', category:'scaling', description:'All EC2-based applications MUST implement Auto Scaling Groups.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-perf-010.tf.aws.asg-required', check_title:'Auto Scaling Groups', severity:'medium', status:'PASS', resource:'aws_autoscaling_group.app', message:'ASG configured with appropriate min/max', remediation:''}] },
     { control_id:'WAF-PERF-030', control_title:'CDN & Edge Caching', pillar:'performance', severity:'low', category:'caching', description:'Static assets and cacheable API responses MUST be served through CloudFront.', status:'PASS', waived_reason:null, regulatory_mapping:[], check_results:[{check_id:'waf-perf-030.tf.aws.cloudfront-required', check_title:'CloudFront distribution', severity:'low', status:'PASS', resource:'aws_cloudfront_distribution.cdn', message:'CloudFront distribution active', remediation:''}] },
+    { control_id:'WAF-OPS-020', control_title:'Alerting & Incident Response', pillar:'operations', severity:'medium', category:'monitoring', description:'All production workloads MUST have CloudWatch alarms configured for CPU, memory, error rates, and latency.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'ISO 27001:2022', controls:['A.8.16']},{framework:'BSI C5:2020', controls:['LOG-02']}], check_results:[{check_id:'waf-ops-020.tf.aws.cloudwatch-alarms', check_title:'CloudWatch alarms configured', severity:'medium', status:'FAIL', resource:'aws_lb.app_alb', message:'No CloudWatch alarms found for load balancer error rate or response time', remediation:'Define aws_cloudwatch_metric_alarm resources covering key metrics for all production load balancers and EC2 instances.'}] },
+    { control_id:'WAF-GOV-010', control_title:'Resource Governance Baseline', pillar:'governance', severity:'low', category:'governance', description:'All AWS accounts MUST use Service Control Policies (SCPs) to enforce governance guardrails.', status:'FAIL', waived_reason:null, regulatory_mapping:[{framework:'GDPR', controls:['Art. 44']},{framework:'BSI C5:2020', controls:['GOV-01']}], check_results:[{check_id:'waf-gov-010.tf.aws.scp-deny-regions', check_title:'SCP restricts resource creation to approved regions', severity:'low', status:'FAIL', resource:'(org root)', message:'No aws_organizations_policy of type SERVICE_CONTROL_POLICY found', remediation:'Define an aws_organizations_policy SCP that denies actions outside approved regions and attach it to all member accounts.'}] },
   ]
 };
 
@@ -1006,6 +1167,7 @@ function wafpass() {
     notification: null,
     _notifTimer: null,
     _charts: {},
+    copiedFix: null,
 
     init() {
       this.$nextTick(() => this.initCharts());
@@ -1058,6 +1220,54 @@ function wafpass() {
     getStatusForControl(controlId) {
       const s = this.getControlStatus(controlId);
       return this.statusColor(s || 'SKIP');
+    },
+
+    get checkStats() {
+      if (!this.results) return null;
+      const allChecks = this.results.results.flatMap(r => r.check_results || []);
+      const pass = allChecks.filter(c => c.status === 'PASS').length;
+      const fail = allChecks.filter(c => c.status === 'FAIL').length;
+      const total = pass + fail;
+      const resources = new Set(allChecks.map(c => c.resource).filter(Boolean));
+      const failResources = new Set(allChecks.filter(c => c.status === 'FAIL').map(c => c.resource).filter(Boolean));
+      return { total, pass, fail, passRate: total ? Math.round(pass / total * 100) : 100, resources: resources.size, failResources: failResources.size };
+    },
+
+    get categoryBreakdown() {
+      if (!this.results) return [];
+      const cats = {};
+      this.results.results.forEach(r => {
+        if (r.status === 'SKIP' || r.status === 'WAIVED') return;
+        const cat = r.category || 'other';
+        if (!cats[cat]) cats[cat] = { pass: 0, fail: 0 };
+        if (r.status === 'PASS') cats[cat].pass++; else cats[cat].fail++;
+      });
+      return Object.entries(cats)
+        .map(([cat, { pass, fail }]) => ({ cat, pass, fail, total: pass + fail, pct: Math.round(pass / (pass + fail) * 100) }))
+        .sort((a, b) => b.fail - a.fail);
+    },
+
+    get regulatoryReadiness() {
+      if (!this.results) return [];
+      const fw = {};
+      this.results.results.forEach(r => {
+        if (r.status === 'SKIP' || r.status === 'WAIVED') return;
+        (r.regulatory_mapping || []).forEach(m => {
+          if (!fw[m.framework]) fw[m.framework] = { pass: 0, total: 0 };
+          fw[m.framework].total++;
+          if (r.status === 'PASS') fw[m.framework].pass++;
+        });
+      });
+      return Object.entries(fw)
+        .map(([framework, { pass, total }]) => ({ framework, pass, total, pct: Math.round(pass / total * 100) }))
+        .sort((a, b) => b.total - a.total);
+    },
+
+    get quickWins() {
+      if (!this.results) return [];
+      return this.results.results
+        .filter(r => r.status === 'FAIL' && ['medium', 'low'].includes(r.severity))
+        .slice(0, 6);
     },
 
     toggleWaiver(ctrl) {
@@ -1131,6 +1341,7 @@ function wafpass() {
     },
 
     openControl(ctrl) {
+      if (!ctrl) return;
       this.selectedControl = ctrl;
       this.modalTab = 'overview';
       this.waiverForm = this.waivers[ctrl.id] ? { ...this.waivers[ctrl.id] } : { reason: '', owner: '', expires: '' };
@@ -1158,6 +1369,23 @@ function wafpass() {
     },
     statusColor(s) {
       return { PASS:'bg-green-100 text-green-800', FAIL:'bg-red-100 text-red-800', SKIP:'bg-slate-100 text-slate-600', WAIVED:'bg-purple-100 text-purple-700', ERROR:'bg-orange-100 text-orange-700' }[s] || 'bg-slate-100 text-slate-600';
+    },
+
+    copyFix(text) {
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        this.copiedFix = text;
+        setTimeout(() => { this.copiedFix = null; }, 2000);
+      });
+    },
+
+    tfDocUrl(resourceType) {
+      if (!resourceType) return '#';
+      const parts = resourceType.split('_');
+      const provider = parts[0];
+      const name = parts.slice(1).join('_');
+      const p = {aws:'hashicorp/aws', azurerm:'hashicorp/azurerm', google:'hashicorp/google', oci:'oracle/oci'}[provider] || `hashicorp/${provider}`;
+      return `https://registry.terraform.io/providers/${p}/latest/docs/resources/${name}`;
     },
 
     notify(message, type = 'success') {
