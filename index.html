@@ -142,8 +142,9 @@
 
 <!-- Demo mode banner -->
 <div class="demo-banner waf-banner" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;color:#fff;font-size:0.75rem;padding:0 1rem;">
-  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-  <span><strong>Demo Mode</strong> — Fully interactive with sample data. All waivers and scan actions are simulated.</span>
+  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span><strong>Demo Mode</strong> — Fully interactive with sample data. All waivers, scan and auto-fix actions are simulated.</span>
+  <span style="background:rgba(234,88,12,.25);color:#fed7aa;font-size:0.6rem;font-weight:800;padding:0.1rem 0.45rem;border-radius:3px;letter-spacing:.04em;border:1px solid rgba(234,88,12,.35);margin-left:0.25rem;">α AUTO-FIX ALPHA</span>
 </div>
 
 <!-- Mobile sidebar backdrop -->
@@ -472,7 +473,13 @@
             <div class="text-sm font-semibold text-slate-800">Quick Wins</div>
             <div class="text-xs text-slate-400">Medium &amp; low severity failures — lower effort to remediate</div>
           </div>
-          <span class="ml-auto text-xs text-slate-400" x-text="quickWins.length + ' control(s)'"></span>
+          <span class="ml-auto text-xs text-slate-400 mr-2" x-text="quickWins.length + ' control(s)'"></span>
+          <button @click="runAutoFix()" :disabled="autoFix.loading" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors" style="background:rgba(0,148,255,.08);border-color:rgba(0,148,255,.25);color:#0094FF;" :class="autoFix.loading ? 'opacity-60 cursor-not-allowed' : ''">
+            <span x-show="!autoFix.loading"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>
+            <span x-show="autoFix.loading" class="animate-spin"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></span>
+            <span x-text="autoFix.loading ? 'Analysing…' : 'Auto-Fix'"></span>
+            <span x-show="!autoFix.loading" style="background:rgba(234,88,12,.12);color:#c2410c;font-size:0.55rem;font-weight:800;padding:0.1rem 0.35rem;border-radius:3px;line-height:1.2;">α</span>
+          </button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <template x-for="r in quickWins" :key="r.control_id">
@@ -605,6 +612,12 @@
           </template>
         </select>
         <span class="text-xs text-slate-400 ml-auto" x-text="filteredFindings.length + ' results'"></span>
+        <button @click="runAutoFix()" :disabled="autoFix.loading" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex-shrink-0" style="background:rgba(0,148,255,.08);border-color:rgba(0,148,255,.25);color:#0094FF;" :class="autoFix.loading ? 'opacity-60 cursor-not-allowed' : ''">
+          <span x-show="!autoFix.loading"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>
+          <span x-show="autoFix.loading" class="animate-spin"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></span>
+          <span x-text="autoFix.loading ? 'Analysing…' : 'Auto-Fix All FAILs'"></span>
+          <span x-show="!autoFix.loading" style="background:rgba(234,88,12,.12);color:#c2410c;font-size:0.55rem;font-weight:800;padding:0.1rem 0.35rem;border-radius:3px;line-height:1.2;">α</span>
+        </button>
       </div>
       <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
         <table class="w-full">
@@ -1355,6 +1368,16 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
+        <!-- Auto-fix button bar -->
+        <div x-show="selectedFinding.status === 'FAIL'" class="px-6 py-3 border-b flex items-center gap-3" style="border-color:#f1f5f9;">
+          <button @click="runAutoFix([selectedFinding.control_id])" :disabled="autoFix.loading" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors" style="background:rgba(0,148,255,.08);border-color:rgba(0,148,255,.25);color:#0094FF;" :class="autoFix.loading ? 'opacity-60 cursor-not-allowed' : ''">
+            <span x-show="!autoFix.loading"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>
+            <span x-show="autoFix.loading" class="animate-spin"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></span>
+            <span x-text="autoFix.loading ? 'Analysing…' : 'Auto-Fix this Control'"></span>
+            <span x-show="!autoFix.loading" style="background:rgba(234,88,12,.12);color:#c2410c;font-size:0.55rem;font-weight:800;padding:0.1rem 0.35rem;border-radius:3px;line-height:1.2;">α</span>
+          </button>
+          <span class="text-xs text-slate-400">Preview surgical patches — demo simulation</span>
+        </div>
         <div class="p-6 space-y-4">
           <div>
             <div class="text-xs font-semibold text-slate-500 uppercase mb-2">Description</div>
@@ -1416,6 +1439,114 @@
         <button @click="editingWaiver = null" class="btn btn-outline">Cancel</button>
       </div>
     </div>
+  </div>
+</div>
+
+
+<!-- ═══ AUTO-FIX PREVIEW MODAL ════════════════════════════════════════════ -->
+<div x-show="autoFix.showModal" x-transition class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-y-auto" style="padding-top:2rem;" @click.self="autoFix.showModal = false">
+  <div class="bg-white rounded-2xl shadow-2xl w-full" style="max-width:48rem;" @click.stop>
+    <template x-if="autoFix.result">
+      <div>
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color:#e2e8f0;">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,148,255,.1);">
+              <svg class="w-5 h-5" style="color:#0094FF;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold" style="color:var(--text);">Auto-Fix Preview</h3>
+                <span style="background:rgba(234,88,12,.12);color:#c2410c;font-size:0.6rem;font-weight:800;padding:0.15rem 0.5rem;border-radius:4px;letter-spacing:.04em;border:1px solid rgba(234,88,12,.2);">α ALPHA</span>
+                <span style="background:rgba(99,102,241,.1);color:#6366f1;font-size:0.6rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:4px;border:1px solid rgba(99,102,241,.2);">DEMO SIMULATION</span>
+              </div>
+              <div class="text-xs mt-0.5" style="color:var(--muted);">
+                <span class="font-semibold" style="color:#16a34a;" x-text="autoFix.result.patches_count"></span> patch(es) ready ·
+                <span x-text="autoFix.result.files_modified.length + ' file(s)'"></span> affected ·
+                <span style="color:#94a3b8;" x-text="autoFix.result.skipped_count + ' check(s) not auto-fixable'"></span>
+              </div>
+            </div>
+          </div>
+          <button @click="autoFix.showModal = false" style="color:#94a3b8;" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#94a3b8'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- KPI row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #f1f5f9;">
+          <div style="padding:0.75rem 1.25rem;text-align:center;">
+            <div class="text-2xl font-bold" style="color:#16a34a;" x-text="autoFix.result.patches_count"></div>
+            <div class="text-xs mt-0.5" style="color:var(--muted);">Patches</div>
+          </div>
+          <div style="padding:0.75rem 1.25rem;text-align:center;border-left:1px solid #f1f5f9;border-right:1px solid #f1f5f9;">
+            <div class="text-2xl font-bold" style="color:#0094FF;" x-text="autoFix.result.files_modified.length"></div>
+            <div class="text-xs mt-0.5" style="color:var(--muted);">Files</div>
+          </div>
+          <div style="padding:0.75rem 1.25rem;text-align:center;">
+            <div class="text-2xl font-bold" style="color:#94a3b8;" x-text="autoFix.result.skipped_count"></div>
+            <div class="text-xs mt-0.5" style="color:var(--muted);">Skipped (manual fix needed)</div>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div style="overflow-y:auto;max-height:52vh;">
+          <!-- Per-file diffs -->
+          <div x-show="Object.keys(autoFix.result.diff_preview || {}).length > 0" style="padding:1rem;display:flex;flex-direction:column;gap:0.75rem;">
+            <div class="text-xs font-semibold uppercase tracking-wide" style="color:#64748b;margin-bottom:0.25rem;">Diff Preview</div>
+            <template x-for="[file, lines] in Object.entries(autoFix.result.diff_preview || {})" :key="file">
+              <div style="border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+                <div style="display:flex;align-items:center;gap:0.5rem;padding:0.375rem 0.75rem;background:#1e293b;border-bottom:1px solid #334155;">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:#475569;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <span style="color:#94a3b8;font-size:0.7rem;font-family:monospace;" x-text="file"></span>
+                </div>
+                <pre style="background:#0f172a;margin:0;padding:0.75rem;overflow-x:auto;font-family:monospace;font-size:0.72rem;line-height:1.6;max-height:240px;"><template x-for="(ln, idx) in lines" :key="idx"><span :style="'display:block;color:' + autoFixDiffColor(ln) + (ln.startsWith('+') && !ln.startsWith('+++') ? ';background:rgba(21,128,61,.12)' : ln.startsWith('-') && !ln.startsWith('---') ? ';background:rgba(220,38,38,.10)' : '')" x-text="ln"></span></template></pre>
+              </div>
+            </template>
+          </div>
+
+          <!-- Skipped list -->
+          <div x-show="autoFix.result.skipped && autoFix.result.skipped.length > 0" style="padding:0 1rem 1rem;">
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:#64748b;">Checks Requiring Manual Fix</div>
+            <div style="border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+              <template x-for="s in autoFix.result.skipped" :key="s.check_id + s.address">
+                <div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.5rem 0.75rem;border-bottom:1px solid #f1f5f9;">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style="color:#94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                      <span style="font-family:monospace;font-size:0.7rem;color:#64748b;" x-text="s.check_id"></span>
+                      <span style="font-family:monospace;font-size:0.7rem;color:#94a3b8;" x-text="s.address"></span>
+                    </div>
+                    <div style="font-size:0.72rem;color:#64748b;margin-top:0.15rem;" x-text="s.reason"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;border-radius:0 0 16px 16px;">
+          <div style="display:flex;flex-direction:column;gap:0.2rem;">
+            <p class="text-xs" style="color:#94a3b8;">
+              <svg class="w-3.5 h-3.5 inline-block mr-1" style="color:#f59e0b;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              Backup files (.tf.bak) are created before any changes are written.
+            </p>
+            <p class="text-xs" style="color:#c2410c;">
+              <span style="background:rgba(234,88,12,.12);color:#c2410c;font-size:0.6rem;font-weight:800;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.35rem;">α ALPHA</span>
+              Auto-Fix is in alpha. Always review the diff and test before deploying.
+            </p>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button @click="autoFix.showModal = false" class="btn btn-outline" style="font-size:0.875rem;">Cancel</button>
+            <button @click="applyAutoFix()" :disabled="autoFix.applying || autoFix.result.patches_count === 0" class="btn btn-primary" style="font-size:0.875rem;" :class="autoFix.applying || autoFix.result.patches_count === 0 ? 'opacity-50 cursor-not-allowed' : ''">
+              <span x-show="!autoFix.applying"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>
+              <span x-show="autoFix.applying" class="animate-spin"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></span>
+              <span x-text="autoFix.applying ? 'Simulating…' : 'Apply ' + autoFix.result.patches_count + ' Patch(es)'"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </div>
 
@@ -1642,6 +1773,9 @@ function wafpass() {
     sandboxResults: null,
     sandboxError: null,
     _roi: { risk: 0, effort: 0, fail: 0, savings: 0 },
+
+    // Auto-Fix
+    autoFix: { loading: false, applying: false, error: null, result: null, showModal: false, controlIds: null },
 
     // Risk Acceptances
     riskAcceptances: {
@@ -2112,6 +2246,147 @@ function wafpass() {
         this.copiedFix = text;
         setTimeout(() => { this.copiedFix = null; }, 2000);
       });
+    },
+
+    // ── Auto-Fix (demo simulation) ─────────────────────────────────────
+    async runAutoFix(controlIds = null) {
+      this.autoFix.loading = true;
+      this.autoFix.error = null;
+      this.autoFix.result = null;
+      this.autoFix.controlIds = controlIds;
+      await new Promise(r => setTimeout(r, 700));
+      try {
+        const result = this._simulateAutoFix(controlIds);
+        this.autoFix.result = result;
+        if (result.patches_count === 0) {
+          this.notify('No auto-fixable issues found in current results');
+          this.autoFix.showModal = false;
+        } else {
+          this.autoFix.showModal = true;
+        }
+      } catch(e) {
+        this.notify(e.message, 'error');
+      } finally {
+        this.autoFix.loading = false;
+      }
+    },
+
+    async applyAutoFix() {
+      this.autoFix.applying = true;
+      await new Promise(r => setTimeout(r, 900));
+      this.autoFix.applying = false;
+      this.autoFix.showModal = false;
+      this.notify('Demo: ' + this.autoFix.result.patches_count + ' patch(es) would be applied to ' + this.autoFix.result.files_modified.length + ' file(s). Use wafpass fix --apply in the CLI to apply for real.');
+    },
+
+    autoFixDiffColor(line) {
+      if (line.startsWith('+') && !line.startsWith('+++')) return '#16a34a';
+      if (line.startsWith('-') && !line.startsWith('---')) return '#dc2626';
+      if (line.startsWith('@@')) return '#818cf8';
+      return '#64748b';
+    },
+
+    _simulateAutoFix(controlIds) {
+      const failing = (this.results ? this.results.results : []).filter(r => {
+        if (r.status !== 'FAIL') return false;
+        if (controlIds && !controlIds.includes(r.control_id)) return false;
+        return true;
+      });
+
+      if (!failing.length) {
+        return { patches_count: 0, skipped_count: 0, files_modified: [], applied: false, patches: [], skipped: [], diff_preview: {} };
+      }
+
+      const patches = [];
+      const skipped = [];
+      const seen = new Set();
+
+      const addPatch = (file, addr, attr, kind, val, checkId, ctrlId) => {
+        const key = addr + '|' + attr;
+        if (seen.has(key)) return;
+        seen.add(key);
+        patches.push({ file, address: addr, attribute: attr, kind, new_value: val, description: `Set ${addr}.${attr} = ${val}`, check_id: checkId, control_id: ctrlId });
+      };
+
+      for (const r of failing) {
+        for (const cr of (r.check_results || [])) {
+          if (cr.status !== 'FAIL') continue;
+          const addr = cr.resource;
+          if (!addr || addr === '(none)' || addr === '(org root)') {
+            skipped.push({ check_id: cr.check_id, control_id: r.control_id, address: addr || '(none)', attribute: '(all)', op: '(n/a)', reason: 'no matching resource found in IaC state' });
+            continue;
+          }
+          if (cr.check_id.includes('iam-password')) {
+            addPatch('security/iam.tf', addr, 'minimum_password_length', 'SET_FLAT', '14', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'require_symbols', 'SET_FLAT', 'true', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'require_numbers', 'SET_FLAT', 'true', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'require_uppercase_characters', 'SET_FLAT', 'true', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'require_lowercase_characters', 'SET_FLAT', 'true', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'password_reuse_prevention', 'SET_FLAT', '5', cr.check_id, r.control_id);
+            addPatch('security/iam.tf', addr, 'max_password_age', 'SET_FLAT', '90', cr.check_id, r.control_id);
+          } else if (cr.check_id.includes('s3-encryption') || cr.check_id.includes('rds-encryption')) {
+            skipped.push({ check_id: cr.check_id, control_id: r.control_id, address: addr, attribute: 'server_side_encryption_configuration', op: 'block_exists', reason: 'requires adding an entirely new resource block' });
+          } else if (cr.check_id.includes('rds-backup')) {
+            addPatch('storage/rds.tf', addr, 'backup_retention_period', 'SET_FLAT', '14', cr.check_id, r.control_id);
+          } else if (cr.check_id.includes('multi-az') || cr.check_id.includes('rds-multi')) {
+            addPatch('storage/rds.tf', addr, 'multi_az', 'SET_FLAT', 'true', cr.check_id, r.control_id);
+          } else if (cr.check_id.includes('no-open-sg') || cr.check_id.includes('security-group')) {
+            skipped.push({ check_id: cr.check_id, control_id: r.control_id, address: addr, attribute: 'ingress.cidr_blocks', op: 'not_contains', reason: 'negation operator — cannot determine a safe replacement automatically' });
+          } else if (cr.check_id.includes('scp') || cr.check_id.includes('organizations')) {
+            skipped.push({ check_id: cr.check_id, control_id: r.control_id, address: addr, attribute: '(all)', op: 'has_associated_resource', reason: 'requires creating a separate resource block' });
+          } else {
+            skipped.push({ check_id: cr.check_id, control_id: r.control_id, address: addr, attribute: '(auto)', op: '(auto)', reason: 'no auto-fix recipe matched this check in demo mode' });
+          }
+        }
+      }
+
+      // Build demo diffs
+      const diff_preview = {};
+      const iamPatches = patches.filter(p => p.file === 'security/iam.tf');
+      if (iamPatches.length) {
+        diff_preview['security/iam.tf'] = [
+          '--- a/security/iam.tf',
+          '+++ b/security/iam.tf',
+          '@@ -2,9 +2,9 @@ resource "aws_iam_account_password_policy" "corporate" {',
+          '-  minimum_password_length        = 8',
+          '+  minimum_password_length        = 14',
+          '-  require_symbols                = false',
+          '+  require_symbols                = true',
+          '-  require_numbers                = false',
+          '+  require_numbers                = true',
+          '-  require_uppercase_characters   = false',
+          '+  require_uppercase_characters   = true',
+          '-  require_lowercase_characters   = false',
+          '+  require_lowercase_characters   = true',
+          '+  password_reuse_prevention      = 5',
+          '+  max_password_age               = 90',
+          '   allow_users_to_change_password = true',
+          ' }',
+        ];
+      }
+      const rdsPatches = patches.filter(p => p.file === 'storage/rds.tf');
+      if (rdsPatches.length) {
+        diff_preview['storage/rds.tf'] = [
+          '--- a/storage/rds.tf',
+          '+++ b/storage/rds.tf',
+          '@@ -9,3 +9,5 @@ resource "aws_db_instance" "prod" {',
+          '   deletion_protection    = false',
+          '+  backup_retention_period = 14',
+          '+  multi_az               = true',
+          ' }',
+        ];
+      }
+
+      const filesModified = [...new Set(patches.map(p => p.file))];
+      return {
+        patches_count: patches.length,
+        skipped_count: skipped.length,
+        files_modified: filesModified,
+        applied: false,
+        patches,
+        skipped,
+        diff_preview,
+      };
     },
 
     tfDocUrl(resourceType) {
