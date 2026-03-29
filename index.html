@@ -193,7 +193,7 @@
     </button>
     <button @click="navTo('controls')" :class="page==='controls' ? 'active' : ''" class="sidebar-link">
       <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      Controls Library
+      Controls Catalogue
       <span class="ml-auto sidebar-count" x-text="controls.length"></span>
     </button>
     <button @click="navTo('findings')" :class="page==='findings' ? 'active' : ''" class="sidebar-link">
@@ -278,7 +278,7 @@
       <div>
       <h1 class="text-lg font-bold" style="color:var(--text);" x-text="{
         dashboard: 'Executive Dashboard',
-        controls: 'Controls Library',
+        controls: 'Controls Catalogue',
         findings: 'Scan Findings',
         compliance: 'Compliance Matrix',
         waivers: 'Waivers Manager',
@@ -556,7 +556,7 @@
     </section>
 
 
-    <!-- ══ CONTROLS LIBRARY ═══════════════════════════════════════════════ -->
+    <!-- ══ CONTROLS CATALOGUE ════════════════════════════════════════════ -->
     <section x-show="page === 'controls'">
       <div class="card mb-4 flex flex-wrap items-center gap-3">
         <div class="relative flex-1 min-w-48">
@@ -581,6 +581,22 @@
           Waived only
         </label>
         <span class="text-xs text-slate-400 ml-auto" x-text="filteredControls.length + ' / ' + controls.length + ' controls'"></span>
+      </div>
+
+      <!-- Action buttons row -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <button @click="showWizard = true; wizardStep = 0; wizardState = { description:'', pillar:'', id:'', severity:'', types:[], checks:[] }; wizardSaved = false; wizardSavedControl = null;" class="btn btn-primary" style="font-size:0.8rem;padding:0.4rem 0.875rem;">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          New Control
+        </button>
+        <button @click="downloadCheckovPack()" class="btn btn-outline" style="font-size:0.8rem;padding:0.4rem 0.875rem;">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Download Checkov Pack
+        </button>
+        <button @click="showGuide = true; guideMode = 'wafpass'; guideTab = 'quickstart';" class="btn btn-outline" style="font-size:0.8rem;padding:0.4rem 0.875rem;">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          How to Implement
+        </button>
       </div>
 
       <div class="space-y-3">
@@ -2249,6 +2265,505 @@
 </div>
 
 
+<!-- ═══ NEW CONTROL WIZARD MODAL ══════════════════════════════════════════ -->
+<div x-show="showWizard" x-transition class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-y-auto" style="padding-top:2rem;" @click.self="showWizard = false">
+  <div class="bg-white rounded-2xl shadow-2xl w-full" style="max-width:42rem;" @click.stop>
+    <!-- Wizard header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color:#e2e8f0;">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,148,255,.1);">
+          <svg class="w-5 h-5" style="color:#0094FF;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold" style="color:var(--text);">New Control</h3>
+          <div class="text-xs mt-0.5" style="color:var(--muted);">
+            Step <span x-text="wizardStep + 1"></span> of 7 —
+            <span x-text="['Describe','Pillar','Classify','Types','Checks','Preview','Save'][wizardStep]"></span>
+            · <span x-text="['Requirement','Security pillar','ID & severity','Control types','Define checks','YAML review','Export & push'][wizardStep]"></span>
+          </div>
+        </div>
+      </div>
+      <button @click="showWizard = false" style="color:#94a3b8;" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#94a3b8'">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Step progress bar -->
+    <div style="display:flex;align-items:flex-start;padding:1rem 1.5rem 0.875rem;border-bottom:1px solid #e2e8f0;background:#f8fafc;overflow-x:auto;">
+      <template x-for="(lbl, i) in ['Describe','Pillar','Classify','Types','Checks','Preview','Save']" :key="i">
+        <div style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+          <template x-if="i > 0">
+            <div style="flex:1;height:2px;margin-top:13px;min-width:8px;" :style="'background:' + (i <= wizardStep ? '#059669' : '#e2e8f0')"></div>
+          </template>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:0.2rem;min-width:52px;">
+            <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:800;flex-shrink:0;transition:all 0.2s;"
+              :style="'background:' + (i < wizardStep ? '#059669' : i === wizardStep ? '#0094FF' : 'transparent') + ';border:2px solid ' + (i < wizardStep ? '#059669' : i === wizardStep ? '#0094FF' : '#94a3b8') + ';color:' + (i <= wizardStep ? '#fff' : '#94a3b8') + ';'">
+              <span x-text="i < wizardStep ? '✓' : i + 1"></span>
+            </div>
+            <span style="font-size:0.58rem;font-weight:700;text-align:center;line-height:1.2;white-space:nowrap;"
+              :style="'color:' + (i < wizardStep ? '#059669' : i === wizardStep ? '#0094FF' : '#94a3b8')"
+              x-text="lbl"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Step body -->
+    <div style="padding:1.5rem;min-height:260px;overflow-y:auto;max-height:55vh;">
+
+      <!-- Step 0: Describe -->
+      <div x-show="wizardStep === 0">
+        <div style="background:rgba(0,148,255,.06);border:1px solid rgba(0,148,255,.2);border-radius:10px;padding:0.875rem 1rem;font-size:0.8rem;color:var(--muted);line-height:1.6;margin-bottom:1rem;">
+          Describe in plain language what your infrastructure must enforce. This becomes the control description that engineers will read in scan results.
+        </div>
+        <label style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;display:block;">Requirement description</label>
+        <textarea x-model="wizardState.description" rows="5"
+          placeholder='E.g. "All S3 buckets must have server-side encryption enabled using AES-256 or KMS."'
+          class="input" style="resize:vertical;font-family:inherit;line-height:1.6;"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:0.3rem;">
+          <span style="font-size:0.68rem;" :style="wizardState.description.length < 20 ? 'color:#DA2C38' : 'color:#059669'"
+            x-text="wizardState.description.length < 20 ? (20 - wizardState.description.length) + ' more characters needed' : wizardState.description.length + ' characters ✓'"></span>
+        </div>
+      </div>
+
+      <!-- Step 1: Pillar -->
+      <div x-show="wizardStep === 1">
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.5;">
+          Choose the security pillar this control belongs to. It determines the control ID prefix and how findings are categorised.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;">
+          <template x-for="[pid, pprefix, pdesc, pcolor] in [
+            ['security','SEC','Threat protection, encryption, access control, and attack-surface reduction','#DA2C38'],
+            ['cost','COST','Resource efficiency, budget guardrails, and cloud spend governance','#f97316'],
+            ['performance','PERF','Latency, throughput, auto-scaling, and resource right-sizing','#eab308'],
+            ['reliability','REL','Fault tolerance, backups, multi-region, and disaster recovery','#3b82f6'],
+            ['operational','OPS','Observability, automation, deployment hygiene, and runbook coverage','#8b5cf6'],
+            ['sustainability','SUS','Carbon footprint, energy efficiency, and sustainable architecture','#22c55e'],
+            ['sovereign','SOV','Data residency, jurisdictional controls, and regulatory locality','#06b6d4']
+          ]" :key="pid">
+            <button @click="wizardState.pillar = pid; wizardState.id = (pprefix + '-' + (String(controls.length + 1).padStart(3,'0')))"
+              style="display:flex;align-items:center;gap:0.875rem;padding:0.65rem 1rem;border-radius:10px;cursor:pointer;text-align:left;transition:all 0.15s;border-width:2px;border-style:solid;"
+              :style="'border-color:' + (wizardState.pillar === pid ? pcolor : 'var(--border)') + ';background:' + (wizardState.pillar === pid ? pcolor + '10' : 'var(--bg)')">
+              <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;" :style="'background:' + pcolor + ';box-shadow:' + (wizardState.pillar === pid ? '0 0 0 3px ' + pcolor + '30' : 'none')"></div>
+              <div style="flex:1;">
+                <span style="font-size:0.85rem;font-weight:700;display:block;text-transform:capitalize;" :style="'color:' + (wizardState.pillar === pid ? pcolor : 'var(--text)')" x-text="pprefix + ' — ' + pid"></span>
+                <span style="font-size:0.73rem;color:var(--muted);line-height:1.4;" x-text="pdesc"></span>
+              </div>
+              <span x-show="wizardState.pillar === pid" style="font-size:0.9rem;" :style="'color:' + pcolor">✓</span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Step 2: Classify -->
+      <div x-show="wizardStep === 2">
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;display:block;">Control ID</label>
+            <input x-model="wizardState.id" placeholder="SEC-001" class="input"
+              @input="wizardState.id = wizardState.id.toUpperCase()" />
+            <div style="font-size:0.68rem;color:var(--muted);margin-top:0.3rem;">
+              Auto-suggested from pillar prefix. Edit freely — must be unique.
+            </div>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;display:block;">Severity</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <template x-for="[sev, scolor] in [['critical','#DA2C38'],['high','#f97316'],['medium','#eab308'],['low','#3b82f6']]" :key="sev">
+                <button @click="wizardState.severity = sev"
+                  style="padding:0.45rem 1.1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.82rem;text-transform:capitalize;transition:all 0.15s;border-width:2px;border-style:solid;"
+                  :style="'border-color:' + (wizardState.severity === sev ? scolor : 'var(--border)') + ';background:' + (wizardState.severity === sev ? scolor + '15' : 'var(--bg)') + ';color:' + (wizardState.severity === sev ? scolor : 'var(--muted)')"
+                  x-text="sev"></button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Types -->
+      <div x-show="wizardStep === 3">
+        <div style="font-size:0.8rem;color:var(--muted);line-height:1.5;margin-bottom:0.75rem;">
+          Select one or more control types that describe how this control is enforced. Choose all that apply.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <template x-for="t in ['governance','configuration','iac','network','identity','data','cost']" :key="t">
+            <button @click="wizardState.types.includes(t) ? (wizardState.types = wizardState.types.filter(x => x !== t)) : wizardState.types.push(t)"
+              style="display:flex;align-items:center;gap:0.6rem;padding:0.65rem 0.875rem;border-radius:8px;cursor:pointer;transition:all 0.15s;border-width:2px;border-style:solid;"
+              :style="'border-color:' + (wizardState.types.includes(t) ? '#0094FF' : 'var(--border)') + ';background:' + (wizardState.types.includes(t) ? 'rgba(0,148,255,.08)' : 'var(--bg)')">
+              <div style="width:16px;height:16px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-width:2px;border-style:solid;"
+                :style="'border-color:' + (wizardState.types.includes(t) ? '#0094FF' : 'var(--border)') + ';background:' + (wizardState.types.includes(t) ? '#0094FF' : 'transparent')">
+                <span x-show="wizardState.types.includes(t)" style="color:#fff;font-size:0.65rem;line-height:1;">✓</span>
+              </div>
+              <span style="font-size:0.8rem;font-weight:600;text-transform:capitalize;" :style="'color:' + (wizardState.types.includes(t) ? '#0094FF' : 'var(--text)')" x-text="t"></span>
+            </button>
+          </template>
+        </div>
+        <div x-show="wizardState.types.length === 0" style="font-size:0.75rem;color:#DA2C38;margin-top:0.5rem;">Select at least one type to continue.</div>
+      </div>
+
+      <!-- Step 4: Checks -->
+      <div x-show="wizardStep === 4">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+          <div style="font-size:0.8rem;color:var(--muted);">Define individual checks that implement this control. Each check maps to a specific engine assertion.</div>
+          <button @click="wizardState.checks.push({id:'',engine:'terraform',description:'',expected:''})"
+            style="font-size:0.75rem;color:#0094FF;background:none;border:none;cursor:pointer;font-weight:700;white-space:nowrap;margin-left:0.75rem;">
+            + Add check
+          </button>
+        </div>
+        <div x-show="wizardState.checks.length === 0" style="font-size:0.8rem;color:var(--muted);text-align:center;padding:2rem;border:2px dashed var(--border);border-radius:10px;">
+          No checks yet. Click "+ Add check" to define a check.
+        </div>
+        <template x-for="(ch, ci) in wizardState.checks" :key="ci">
+          <div style="background:var(--bg);border-radius:10px;border:1px solid var(--border);padding:0.875rem;margin-bottom:0.5rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+              <span style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;" x-text="'Check ' + (ci + 1)"></span>
+              <button x-show="wizardState.checks.length > 1" @click="wizardState.checks.splice(ci, 1)"
+                style="background:none;border:none;cursor:pointer;color:#DA2C38;font-size:0.8rem;line-height:1;">✕</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 130px;gap:0.5rem;margin-bottom:0.5rem;">
+              <input x-model="ch.id" placeholder="Check ID — e.g. tf.s3_encryption" class="input" />
+              <select x-model="ch.engine" class="input">
+                <option value="terraform">terraform</option>
+                <option value="checkov">checkov</option>
+                <option value="manual">manual</option>
+              </select>
+            </div>
+            <input x-model="ch.description" placeholder="What this check verifies" class="input" style="margin-bottom:0.5rem;" />
+            <input x-model="ch.expected" placeholder="Expected — what a passing configuration looks like" class="input" />
+          </div>
+        </template>
+      </div>
+
+      <!-- Step 5: Preview -->
+      <div x-show="wizardStep === 5">
+        <div style="font-size:0.8rem;color:var(--muted);line-height:1.5;margin-bottom:0.75rem;">
+          Review the generated YAML before saving. Use <strong>Previous</strong> to go back and make edits.
+        </div>
+        <pre style="margin:0;background:#0f172a;border-radius:10px;padding:1rem 1.1rem;font-size:0.75rem;color:#e2e8f0;overflow-x:auto;line-height:1.7;white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.06);" x-text="wizardGenerateYaml()"></pre>
+        <!-- Validation summary -->
+        <div style="background:var(--bg);border-radius:10px;border:1px solid var(--border);padding:0.875rem 1rem;margin-top:0.75rem;">
+          <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">Validation</div>
+          <div style="display:flex;flex-direction:column;gap:0.3rem;">
+            <template x-for="[lbl, ok] in [
+              ['Description',  wizardState.description.trim().length >= 20],
+              ['Pillar',       ['security','cost','performance','reliability','operational','sustainability','sovereign'].includes(wizardState.pillar)],
+              ['Control ID',   /^[A-Z]+-\d+$/.test(wizardState.id || '')],
+              ['Severity',     ['critical','high','medium','low'].includes(wizardState.severity)],
+              ['Types',        wizardState.types.length > 0],
+              ['Checks',       wizardState.checks.length > 0 && wizardState.checks.every(c => c.id && c.description && c.expected)]
+            ]" :key="lbl">
+              <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.78rem;">
+                <span style="font-weight:700;" :style="ok ? 'color:#059669' : 'color:#DA2C38'" x-text="ok ? '✓' : '✗'"></span>
+                <span :style="ok ? 'color:var(--text)' : 'color:#DA2C38'" x-text="lbl"></span>
+                <span x-show="!ok" style="color:#DA2C38;font-size:0.7rem;">· required</span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6: Save -->
+      <div x-show="wizardStep === 6">
+        <!-- Saved state -->
+        <div x-show="wizardSaved" style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.25);border-radius:10px;padding:0.875rem 1rem;">
+            <span style="font-size:1.4rem;color:#059669;">✓</span>
+            <div>
+              <div style="font-weight:700;font-size:0.88rem;color:#059669;">Control saved (demo mode)</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:0.15rem;">
+                <code style="font-weight:700;color:var(--text);" x-text="wizardState.id"></code> is ready for export.
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Export</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button @click="wizardDownloadYaml()"
+                style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;background:rgba(0,148,255,.1);color:#0094FF;border:1px solid rgba(0,148,255,.3);">
+                ↓ Download YAML
+              </button>
+            </div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;border:1px solid var(--border);padding:0.875rem 1rem;">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">Use with wafpass CLI</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;" x-text="'wafpass scan --path ./terraform --controls-db http://localhost:8000'"></pre>
+          </div>
+        </div>
+        <!-- Not yet saved -->
+        <div x-show="!wizardSaved" style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="background:var(--bg);border-radius:10px;border:1px solid var(--border);padding:0.875rem 1rem;display:flex;flex-direction:column;gap:0.4rem;">
+            <div style="display:flex;gap:0.75rem;font-size:0.8rem;"><span style="font-weight:700;color:var(--muted);min-width:70px;">ID</span><span x-text="wizardState.id || '—'"></span></div>
+            <div style="display:flex;gap:0.75rem;font-size:0.8rem;"><span style="font-weight:700;color:var(--muted);min-width:70px;">Pillar</span><span x-text="wizardState.pillar || '—'"></span></div>
+            <div style="display:flex;gap:0.75rem;font-size:0.8rem;"><span style="font-weight:700;color:var(--muted);min-width:70px;">Severity</span><span x-text="wizardState.severity || '—'"></span></div>
+            <div style="display:flex;gap:0.75rem;font-size:0.8rem;"><span style="font-weight:700;color:var(--muted);min-width:70px;">Types</span><span x-text="wizardState.types.join(', ') || '—'"></span></div>
+            <div style="display:flex;gap:0.75rem;font-size:0.8rem;"><span style="font-weight:700;color:var(--muted);min-width:70px;">Checks</span><span x-text="wizardState.checks.length + ' defined'"></span></div>
+          </div>
+          <button @click="wizardSaveControl()" :disabled="!wizardIsValid()"
+            style="padding:0.65rem 1.25rem;border-radius:10px;border:none;color:#fff;font-weight:700;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;"
+            :style="wizardIsValid() ? 'background:#0094FF;cursor:pointer;' : 'background:#94a3b8;cursor:default;'">
+            ↑ Save to wafpass-server
+          </button>
+          <div x-show="!wizardIsValid()" style="font-size:0.73rem;color:var(--muted);text-align:center;">
+            Go back and fix validation errors before saving.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Wizard footer nav -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;border-radius:0 0 16px 16px;">
+      <button x-show="wizardStep > 0 && !wizardSaved" @click="wizardStep--" class="btn btn-outline" style="font-size:0.875rem;">← Previous</button>
+      <div x-show="wizardStep === 0 || wizardSaved" style="width:1px;"></div>
+      <div style="display:flex;gap:0.5rem;">
+        <button x-show="wizardSaved || wizardStep === 6" @click="showWizard = false" class="btn btn-outline" style="font-size:0.875rem;">Close</button>
+        <button x-show="wizardStep < 6 && !wizardSaved" @click="wizardStep++"
+          :disabled="(wizardStep === 0 && wizardState.description.trim().length < 20) || (wizardStep === 1 && !wizardState.pillar) || (wizardStep === 2 && (!wizardState.id || !wizardState.severity)) || (wizardStep === 3 && wizardState.types.length === 0) || (wizardStep === 4 && wizardState.checks.length === 0)"
+          class="btn btn-primary" style="font-size:0.875rem;"
+          :class="((wizardStep === 0 && wizardState.description.trim().length < 20) || (wizardStep === 1 && !wizardState.pillar) || (wizardStep === 2 && (!wizardState.id || !wizardState.severity)) || (wizardStep === 3 && wizardState.types.length === 0) || (wizardStep === 4 && wizardState.checks.length === 0)) ? 'opacity-50 cursor-not-allowed' : ''">
+          Next →
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ HOW TO IMPLEMENT GUIDE MODAL ══════════════════════════════════════ -->
+<div x-show="showGuide" x-transition class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-y-auto" style="padding-top:2rem;" @click.self="showGuide = false">
+  <div class="bg-white rounded-2xl shadow-2xl w-full" style="max-width:44rem;" @click.stop>
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color:#e2e8f0;">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(0,148,255,.1);">
+          <svg class="w-5 h-5" style="color:#0094FF;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold" style="color:var(--text);">How to Implement</h3>
+          <div class="text-xs mt-0.5" style="color:var(--muted);">Integration guide for WAF++ controls</div>
+        </div>
+      </div>
+      <button @click="showGuide = false" style="color:#94a3b8;" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#94a3b8'">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Mode toggle -->
+    <div style="padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;gap:0.75rem;">
+      <span style="font-size:0.8rem;font-weight:600;color:var(--muted);">Mode:</span>
+      <div style="display:flex;background:#e2e8f0;border-radius:8px;padding:3px;gap:2px;">
+        <button @click="guideMode = 'wafpass'; guideTab = 'quickstart'"
+          style="padding:0.35rem 0.875rem;border-radius:6px;font-size:0.8rem;font-weight:600;border:none;cursor:pointer;transition:all 0.15s;"
+          :style="guideMode === 'wafpass' ? 'background:#0094FF;color:#fff;box-shadow:0 2px 8px rgba(0,148,255,.3)' : 'background:transparent;color:var(--muted)'">
+          WAF++ CLI
+        </button>
+        <button @click="guideMode = 'checkov'; guideTab = 'quickstart'"
+          style="padding:0.35rem 0.875rem;border-radius:6px;font-size:0.8rem;font-weight:600;border:none;cursor:pointer;transition:all 0.15s;"
+          :style="guideMode === 'checkov' ? 'background:#0094FF;color:#fff;box-shadow:0 2px 8px rgba(0,148,255,.3)' : 'background:transparent;color:var(--muted)'">
+          Checkov
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="border-bottom:1px solid #e2e8f0;display:flex;padding:0 1.5rem;background:#fff;">
+      <!-- WAF++ tabs -->
+      <template x-if="guideMode === 'wafpass'">
+        <div style="display:flex;gap:0;">
+          <button @click="guideTab = 'quickstart'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'quickstart' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            Quick Start
+          </button>
+          <button @click="guideTab = 'controls'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'controls' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            Controls
+          </button>
+          <button @click="guideTab = 'dashboard'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'dashboard' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            Dashboard
+          </button>
+        </div>
+      </template>
+      <!-- Checkov tabs -->
+      <template x-if="guideMode === 'checkov'">
+        <div style="display:flex;gap:0;">
+          <button @click="guideTab = 'quickstart'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'quickstart' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            Quick Start
+          </button>
+          <button @click="guideTab = 'implement'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'implement' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            Implement
+          </button>
+          <button @click="guideTab = 'cicd'" style="padding:0.75rem 1rem;font-size:0.8rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom-width:2px;border-bottom-style:solid;transition:all 0.15s;"
+            :style="guideTab === 'cicd' ? 'border-bottom-color:#0094FF;color:#0094FF' : 'border-bottom-color:transparent;color:var(--muted)'">
+            CI/CD
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Tab content -->
+    <div style="padding:1.5rem;overflow-y:auto;max-height:55vh;">
+
+      <!-- WAF++ Quick Start -->
+      <div x-show="guideMode === 'wafpass' && guideTab === 'quickstart'">
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="background:rgba(0,148,255,.06);border:1px solid rgba(0,148,255,.2);border-radius:10px;padding:0.875rem 1rem;font-size:0.8rem;color:var(--muted);line-height:1.6;">
+            <strong style="color:var(--text);">WAF++ CLI</strong> is the primary way to run controls against Terraform infrastructure. Install it with pip and point it at your IaC.
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">1. Install</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">pip install wafpass</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">2. Run a scan</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">wafpass scan --path ./terraform</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">3. Get a score report</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">wafpass scan --path ./terraform --output json &gt; results.json</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAF++ Controls -->
+      <div x-show="guideMode === 'wafpass' && guideTab === 'controls'">
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;">From a local controls folder</div>
+            <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;line-height:1.5;">Drop your YAML control files in a <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px;">controls/</code> directory and point wafpass at it:</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">wafpass scan --path ./terraform --controls ./controls/</pre>
+          </div>
+          <div>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;">From wafpass-server (DB)</div>
+            <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;line-height:1.5;">Start wafpass-server locally and use the <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px;">--controls-db</code> flag to pull custom controls:</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;white-space:pre-wrap;"># Start the server
+docker run -p 8000:8000 ghcr.io/waf-plus-plus/wafpass-server:latest
+
+# Scan using DB controls
+wafpass scan --path ./terraform --controls-db http://localhost:8000</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAF++ Dashboard -->
+      <div x-show="guideMode === 'wafpass' && guideTab === 'dashboard'">
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="background:rgba(0,148,255,.06);border:1px solid rgba(0,148,255,.2);border-radius:10px;padding:0.875rem 1rem;font-size:0.8rem;color:var(--muted);line-height:1.6;">
+            Push scan results to wafpass-server so this dashboard can visualise posture over time.
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Push results to dashboard</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">wafpass scan --path ./terraform --push http://your-server:8000</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">View in dashboard</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">open http://your-server:8000</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkov Quick Start -->
+      <div x-show="guideMode === 'checkov' && guideTab === 'quickstart'">
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="background:rgba(14,165,233,.06);border:1px solid rgba(14,165,233,.2);border-radius:10px;padding:0.875rem 1rem;font-size:0.8rem;color:var(--muted);line-height:1.6;">
+            Use the <strong style="color:var(--text);">Download Checkov Pack</strong> button to get Python stubs for all controls, then load them as external Checkov checks.
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">1. Install Checkov</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">pip install checkov</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">2. Download &amp; extract the pack</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;white-space:pre-wrap;"># Click "Download Checkov Pack" above, then:
+unzip wafpass_checkov_pack_*.zip</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">3. Run Checkov with custom checks</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;">checkov -d ./terraform --external-checks-dir ./wafpass_checks/</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkov Implement -->
+      <div x-show="guideMode === 'checkov' && guideTab === 'implement'">
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.5;">
+            Each Python stub in the pack is a <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px;">BaseResourceCheck</code> subclass with a <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px;">scan_resource_conf</code> method. Replace the <code style="background:var(--bg);padding:0.1rem 0.3rem;border-radius:4px;">raise NotImplementedError</code> with your actual check logic.
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Example stub</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;white-space:pre-wrap;">def scan_resource_conf(self, conf):
+    # Check that encryption is enabled
+    enc = conf.get("server_side_encryption", [{}])
+    if enc and enc[0]:
+        return CheckResult.PASSED
+    return CheckResult.FAILED</pre>
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Folder structure</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;white-space:pre-wrap;">wafpass_checks/
+├── __init__.py
+├── WAF-SEC-001.py
+├── WAF-SEC-002.py
+└── ...</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checkov CI/CD -->
+      <div x-show="guideMode === 'checkov' && guideTab === 'cicd'">
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.5;">
+            Add WAF++ controls as a step in your GitHub Actions pipeline to enforce compliance on every PR.
+          </div>
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">GitHub Actions example</div>
+            <pre style="margin:0;background:#0f172a;border-radius:8px;padding:0.7rem 0.875rem;font-size:0.73rem;color:#e2e8f0;overflow-x:auto;line-height:1.65;white-space:pre-wrap;">name: WAF++ Compliance Check
+
+on: [pull_request]
+
+jobs:
+  checkov:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Download WAF++ Checkov Pack
+        run: |
+          curl -sSL https://your-server:8000/api/checkov-pack \
+            -o wafpass_checkov_pack.zip
+          unzip wafpass_checkov_pack.zip
+
+      - name: Run WAF++ Checkov checks
+        run: |
+          checkov -d ./terraform \
+            --external-checks-dir ./wafpass_checks/ \
+            --output github_failed_only \
+            --soft-fail</pre>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Guide footer -->
+    <div style="display:flex;align-items:center;justify-content:flex-end;padding:1rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;border-radius:0 0 16px 16px;">
+      <button @click="showGuide = false" class="btn btn-outline" style="font-size:0.875rem;">Close</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- Notification toast -->
 <div x-show="notification" x-transition class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2" style="max-width:20rem;"
   :style="notification && notification.type === 'error' ? 'background:#dc2626;' : 'background:#070a12;'">
@@ -2513,6 +3028,25 @@ function wafpass() {
     raModal: false,
     raEditId: null,
     raForm: { id: '', reason: '', approver: '', owner: '', rfc: '', jira_link: '', other_link: '', notes: '', risk_level: 'accepted', residual_risk: 'medium', expires: '', accepted_at: '' },
+
+    // Wizard (New Control)
+    showWizard: false,
+    wizardStep: 0,
+    wizardState: {
+      description: '',
+      pillar: '',
+      id: '',
+      severity: '',
+      types: [],
+      checks: [],
+    },
+    wizardSaved: false,
+    wizardSavedControl: null,
+
+    // Implementation Guide modal
+    showGuide: false,
+    guideMode: 'wafpass',
+    guideTab: 'quickstart',
 
     init() {
       try { const _s = localStorage.getItem('wafpass_settings'); if (_s) Object.assign(this.settings, JSON.parse(_s)); } catch(e) {}
@@ -3289,7 +3823,175 @@ function wafpass() {
         });
       }
     },
+
+    // ── Controls Catalogue helpers ────────────────────────────────────────────
+    downloadCheckovPack() {
+      const files = [];
+      const date = new Date().toISOString().split('T')[0];
+      files.push({
+        name: 'wafpass_checks/__init__.py',
+        content: [
+          `# WAF++ Checkov checks — generated ${date}`,
+          `# Controls: ${this.controls.length}`,
+          `#`,
+          `# Usage:`,
+          `#   checkov -d ./terraform --external-checks-dir ./wafpass_checks/`,
+        ].join('\n') + '\n',
+      });
+      for (const ctrl of this.controls) {
+        const cid = ctrl.id.replace(/-/g, '_').toUpperCase();
+        const cls = 'Check' + ctrl.id.replace(/-/g, '');
+        const ckv = 'CKV_' + ctrl.id.replace(/-/g, '_');
+        const desc = (ctrl.description || ctrl.title || ctrl.id).trim().split('\n')[0].slice(0, 120).replace(/"/g, '\\"');
+        const lines = [
+          `# Generated by wafpass-dashboard — WAF++ Framework Control`,
+          `# Source: ${ctrl.id} | Pillar: ${ctrl.pillar} | Severity: ${ctrl.severity}`,
+          ``,
+          `from checkov.common.models.enums import CheckCategories, CheckResult`,
+          `from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck`,
+          ``,
+          ``,
+          `class ${cls}(BaseResourceCheck):`,
+          `    """WAF++ Control ${ctrl.id}: ${desc}"""`,
+          ``,
+          `    def __init__(self) -> None:`,
+          `        super().__init__(`,
+          `            name="${desc}",`,
+          `            check_id="${ckv}",`,
+          `            categories=[CheckCategories.GENERAL_SECURITY],`,
+          `            supported_resources=["*"],`,
+          `        )`,
+          ``,
+          `    def scan_resource_conf(self, conf: dict) -> CheckResult:`,
+          `        # TODO: implement check logic for WAF++ control ${ctrl.id}`,
+          `        raise NotImplementedError("Stub — implement check logic for ${ctrl.id}")`,
+          ``,
+          ``,
+          `scanner = ${cls}()`,
+        ];
+        const content = lines.join('\n') + '\n';
+        files.push({ name: `wafpass_checks/${ctrl.id}.py`, content });
+      }
+      const zip = makeZip(files);
+      downloadZip(`wafpass_checkov_pack_${date}.zip`, zip);
+      this.notify('Checkov pack downloaded (' + this.controls.length + ' controls)');
+    },
+
+    wizardGenerateYaml() {
+      const s = this.wizardState;
+      const typeLines = (s.types || []).map(t => `- ${t}`).join('\n');
+      const descLines = (s.description || '').trim().split('\n').map(l => `  ${l}`).join('\n');
+      const checksLines = (s.checks || []).map(ch =>
+        `- id: ${ch.id}\n  engine: ${ch.engine}\n  description: ${JSON.stringify(ch.description)}\n  expected: ${JSON.stringify(ch.expected)}`
+      ).join('\n');
+      return (
+        `# Generated by wafpass control generate — do not edit manually\n` +
+        `# Source: ${s.id} | Pillar: ${s.pillar} | Severity: ${s.severity}\n` +
+        `id: ${s.id}\npillar: ${s.pillar}\nseverity: ${s.severity}\ntype:\n${typeLines}\n` +
+        `description: |\n${descLines}\n` +
+        ((s.checks || []).length > 0 ? `checks:\n${checksLines}\n` : `checks: []\n`)
+      );
+    },
+
+    wizardIsValid() {
+      const s = this.wizardState;
+      const ALL_PILLARS = ['security','cost','performance','reliability','operational','sustainability','sovereign'];
+      const ALL_SEVERITIES = ['critical','high','medium','low'];
+      return (
+        (s.description || '').trim().length >= 20 &&
+        ALL_PILLARS.includes(s.pillar) &&
+        /^[A-Z]+-\d+$/.test(s.id || '') &&
+        ALL_SEVERITIES.includes(s.severity) &&
+        (s.types || []).length > 0 &&
+        (s.checks || []).length > 0 &&
+        s.checks.every(c => c.id && c.description && c.expected)
+      );
+    },
+
+    wizardSaveControl() {
+      if (!this.wizardIsValid()) return;
+      const s = this.wizardState;
+      // In demo mode we just record locally
+      const saved = {
+        id: s.id, pillar: s.pillar, severity: s.severity,
+        type: [...s.types], description: s.description,
+        checks: s.checks.map(c => ({ ...c })),
+        source: 'dashboard', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      this.wizardSavedControl = saved;
+      this.wizardSaved = true;
+      this.notify('Control ' + s.id + ' saved (demo mode)');
+    },
+
+    wizardDownloadYaml() {
+      const s = this.wizardState;
+      const yaml = this.wizardGenerateYaml();
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([yaml], { type: 'text/yaml' })),
+        download: `${s.id || 'control'}.yml`,
+      });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    },
+
   };
+}
+
+// ── ZIP encoder (uncompressed/store format) ───────────────────────────────────
+function crc32(buf) {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c;
+  }
+  let crc = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) crc = t[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function makeZip(files) {
+  const enc = new TextEncoder();
+  const out = [];
+  function w8(n)  { out.push(n & 0xff); }
+  function w16(n) { w8(n); w8(n >>> 8); }
+  function w32(n) { w8(n); w8(n >>> 8); w8(n >>> 16); w8(n >>> 24); }
+  function wbuf(b) { for (let i = 0; i < b.length; i++) w8(b[i]); }
+  const entries = [];
+  for (const f of files) {
+    const nb = enc.encode(f.name);
+    const db = enc.encode(f.content);
+    const crc = crc32(db);
+    const offset = out.length;
+    entries.push({ offset, nb, db, crc });
+    w32(0x04034b50); w16(20); w16(0); w16(0); w32(0);
+    w32(crc); w32(db.length); w32(db.length);
+    w16(nb.length); w16(0);
+    wbuf(nb); wbuf(db);
+  }
+  const cdStart = out.length;
+  for (const e of entries) {
+    w32(0x02014b50); w16(0x0314); w16(20); w16(0); w16(0); w32(0);
+    w32(e.crc); w32(e.db.length); w32(e.db.length);
+    w16(e.nb.length); w16(0); w16(0);
+    w16(0); w16(0); w32(0);
+    w32(e.offset); wbuf(e.nb);
+  }
+  const cdSize = out.length - cdStart;
+  w32(0x06054b50); w16(0); w16(0);
+  w16(entries.length); w16(entries.length);
+  w32(cdSize); w32(cdStart); w16(0);
+  return new Uint8Array(out);
+}
+
+function downloadZip(name, zip) {
+  const buf = zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength);
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([buf], { type: 'application/zip' })),
+    download: name,
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 </script>
 
